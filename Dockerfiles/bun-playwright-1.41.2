@@ -1,0 +1,16 @@
+FROM cr.siemens.com/iih-cc-six/infra/images/bun
+
+RUN apk add \
+    libstdc++ \
+    chromium \
+    harfbuzz \
+    nss \
+    freetype \
+    ttf-freefont \
+    font-noto-emoji \
+    && apk add --no-cache tini \
+    && rm -rf /var/cache/* \
+    && mkdir /var/cache/apk 
+
+ENV CHROME_BIN=/usr/bin/chromium-browser \
+    CHROME_PATH=/usr/lib/chromium/ 

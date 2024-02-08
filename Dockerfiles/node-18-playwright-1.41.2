@@ -1,0 +1,2 @@
+FROM node:18
+RUN npm_config_registry=$NPM_CONFIG_REGISTRY npx -y playwright@1.41.2 install --with-deps chromium chrome

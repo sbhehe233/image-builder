@@ -1,0 +1,14 @@
+get-content scripts\ps\.env | foreach {
+    $name, $value = $_.split('=')
+    set-content env:\$name $value
+}
+$wc = new-object net.webclient
+$proxyUri = new-object system.uri($http_proxy)
+$wc.Proxy = new-object system.net.WebProxy($proxyUri, $true)
+Set-ExecutionPolicy Bypass -Scope Process -Force
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+$script = $wc.DownloadString('https://chocolatey.org/install.ps1')
+& ([scriptblock]::Create($script))
+choco install nodejs.install -y --version=18.18.2
+$env:ChocolateyInstall = Convert-Path "$((Get-Command choco).Path)\..\.."   
+Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"

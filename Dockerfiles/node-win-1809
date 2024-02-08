@@ -1,0 +1,7 @@
+FROM mcr.microsoft.com/windows:1809
+ARG SHELLOPTS igncr
+ARG chocolateyProxyLocation $http_proxy
+ARG chocolateyVersion 1.4.0
+COPY scripts/ .
+RUN powershell -executionpolicy remotesigned -File "${SCRIPT_FILE}"
+RUN del scripts /S /Q

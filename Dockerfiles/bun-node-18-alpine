@@ -1,0 +1,62 @@
+FROM cr.siemens.com/iih-cc-six/infra/images/bun-alpine AS build
+
+FROM node:18-alpine3.18
+
+ARG GLIBC_VERSION=2.34-r0
+
+# https://github.com/oven-sh/bun/issues/5545#issuecomment-1722461083
+ARG GLIBC_VERSION_AARCH64=2.26-r1
+
+COPY --from=build /usr/local/bin/bun /usr/local/bin/
+COPY scripts/bun/docker-entrypoint.sh /usr/local/bin/
+
+RUN apk --no-cache add \
+      curl \ 
+    && arch="$(apk --print-arch)" \
+    && case "${arch##*-}" in \
+      x86_64) build="x64-baseline";; \
+      aarch64) build="aarch64";; \
+      *) echo "error: unsupported architecture: $arch"; exit 1 ;; \
+    esac \
+    && case "${arch##*-}" in \
+      x86_64) curl "https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-${GLIBC_VERSION}.apk" \
+        -fsSLO \
+        --compressed \
+        --retry 5 \
+        || (echo "error: failed to download: glibc v${GLIBC_VERSION}" && exit 1) \
+      && mv "glibc-${GLIBC_VERSION}.apk" glibc.apk \
+      && curl "https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-bin-${GLIBC_VERSION}.apk" \
+        -fsSLO \
+        --compressed \
+        --retry 5 \
+        || (echo "error: failed to download: glibc-bin v${GLIBC_VERSION}" && exit 1) \
+      && mv "glibc-bin-${GLIBC_VERSION}.apk" glibc-bin.apk ;; \
+      aarch64) curl "https://raw.githubusercontent.com/squishyu/alpine-pkg-glibc-aarch64-bin/master/glibc-${GLIBC_VERSION_AARCH64}.apk" \
+        -fsSLO \
+        --compressed \
+        --retry 5 \
+        || (echo "error: failed to download: glibc v${GLIBC_VERSION_AARCH64}" && exit 1) \
+      && mv "glibc-${GLIBC_VERSION_AARCH64}.apk" glibc.apk \
+      && curl "https://raw.githubusercontent.com/squishyu/alpine-pkg-glibc-aarch64-bin/master/glibc-bin-${GLIBC_VERSION_AARCH64}.apk" \
+        -fsSLO \
+        --compressed \
+        --retry 5 \
+        || (echo "error: failed to download: glibc-bin v${GLIBC_VERSION_AARCH64}" && exit 1) \
+      && mv "glibc-bin-${GLIBC_VERSION_AARCH64}.apk" glibc-bin.apk ;; \
+      *) echo "error: unsupported architecture '$arch'"; exit 1 ;; \
+    esac \
+    && addgroup -g 1001 bun \
+    && adduser -u 1001 -G bun -s /bin/sh -D bun \
+    && apk --no-cache --force-overwrite --allow-untrusted add \
+      glibc.apk \
+      glibc-bin.apk \
+    && rm glibc.apk \
+    && rm glibc-bin.apk \
+    && ln -s /usr/local/bin/bun /usr/local/bin/bunx \
+    && which bun \
+    && which bunx \
+    && bun --version
+
+WORKDIR /home/bun/app
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["/usr/local/bin/bun"]

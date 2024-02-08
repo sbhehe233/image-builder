@@ -1,0 +1,27 @@
+variables:
+  http_proxy: $CODE_PROXY
+  https_proxy: $CODE_PROXY
+  no_proxy: $NOPROXY_LOCALHOST
+
+build:
+  tags: 
+    - $ENV_TAG
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  variables:
+    IMAGE_NAME: $DOCKERFILE_NAME
+    LOAD_ENV_SH: $CI_PROJECT_DIR/tools/load_env.sh
+    ENV_FILE_PATH: $CI_PROJECT_DIR/${ENV_FILE:-envs/${DOCKERFILE_NAME}}
+  script:
+    |
+    ([ -z "$ARTIFACTORY_DOCKER_URL" ] || [ -z "$ARTIFACTORY_USER" ] || [ -z "$ARTIFACTORY_APIKEY" ] ) || ARTIFACTORY_AUTH=",\"${ARTIFACTORY_DOCKER_URL}\":{\"auth\":\"$(printf "%s:%s" "${ARTIFACTORY_USER}" "${ARTIFACTORY_APIKEY}" | base64 | tr -d '\n')\"}"
+    ([ -z "$PUBLISH_GCR" ]) || DEST_GCR="--destination=${CI_REGISTRY_IMAGE}/${IMAGE_NAME}:${CI_COMMIT_TAG=\"latest\"}"
+    ([ -z "$PUBLISH_ART" ] || [ -z "$ARTIFACTORY_AUTH" ]) || DEST_ART="--destination=${ARTIFACTORY_DOCKER_URL}/${IMAGE_NAME}:${CI_COMMIT_TAG=\"latest\"}"
+    mkdir -p /kaniko/.docker
+    echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"} $ARTIFACTORY_AUTH }}"  > /kaniko/.docker/config.json
+    BUILD_ARGS_ENV="$(sh $LOAD_ENV_SH $ENV_FILE_PATH)" && echo $BUILD_ARGS_ENV
+    eval "/kaniko/executor --build-arg http_proxy=$CODE_PROXY --build-arg https_proxy=$CODE_PROXY --build-arg no_proxy=$no_proxy --build-arg SCRIPT_FILE=$SCRIPT_FILE ${BUILD_ARGS} ${BUILD_ARGS_ENV} --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfiles/${DOCKERFILE_NAME} $DEST_GCR $DEST_ART"
+  rules:
+    - if: $DOCKERFILE_NAME
